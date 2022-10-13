@@ -5,6 +5,7 @@
 #include "PcmReader.h"
 #include "log.h"
 #include "libavcodec/avcodec.h"
+#include "Releaser.h"
 
 const int error_code = -1;
 const int success_code = 0;
@@ -75,6 +76,13 @@ void PcmReader::start() {
      * 声道布局文章：https://its401.com/article/XIAIBIANCHENG/72810495
      * 解码音频实例文章：https://www.likecs.com/show-203604502.html
      *
+     * TODO：取出剩余数据
+     * 第三个传递NULL，第四个传递0即可将缓存中的全部取出
+     * int real_nb_samples = swr_convert(swrCtx,dst_data,dst_nb_samples,NULL,0);
+     * if (real_nb_samples <=0) {
+            break;
+        }
+     *
      */
 
 //    max_dst_nb_samples = dst_nb_samples =
@@ -100,6 +108,14 @@ void PcmReader::start() {
     avcodec_close(pCodecCtx);
     avformat_close_input(&pFormatCtx);
 
+}
+
+void release_av(void *ptr) {
+    if (ptr) {
+        LOGD("释放内存");
+        av_freep(ptr);
+        ptr = nullptr;
+    }
 }
 
 void PcmReader::audio_decode_frame(AVCodecContext *p_codec_ctx, AVPacket &packet) const {
@@ -135,6 +151,8 @@ void PcmReader::audio_decode_frame(AVCodecContext *p_codec_ctx, AVPacket &packet
 
     int pkt_size = packet.size;
     while (pkt_size > 0) {
+
+        // 解码
         int got_frame = 0;
         int len = avcodec_decode_audio4(p_codec_ctx, p_frame, &got_frame, &packet);
         // 解码错误
@@ -144,25 +162,27 @@ void PcmReader::audio_decode_frame(AVCodecContext *p_codec_ctx, AVPacket &packet
         }
         pkt_size -= len;
 
-        // 使用swr_convert对音频帧pFrame进行重采样
+        // 重采样
         if (got_frame) {
-            // 是否对齐
             int align = 1;
-
             // 据被转换的音频帧，计算转换后的音频帧的样本数
             int dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_context, in_sample_rate) + p_frame->nb_samples,
                                                 dst_sample_rate, in_sample_rate, AV_ROUND_UP);
             int max_dst_nb_samples = dst_nb_samples;
 
             // 申请输出内存
-            uint8_t **dst_data = nullptr;
             int dst_nb_channels = av_get_channel_layout_nb_channels(dst_channel_layout);
+            uint8_t **dst_data = nullptr; // 输出缓存
             int dst_linesize = 0;
+            // TODO 内存复用，方法内只分配一次内存，参考：https://github.com/nldzsz/ffmpeg-demo/blob/2e1cfcefe49847a069a810e78b19f09118890f19/cppsrc/audio_resample.cpp
             ret = av_samples_alloc_array_and_samples(&dst_data, &dst_linesize, dst_nb_channels, dst_nb_samples, dst_sample_fmt, align);
             if (ret < 0) {
                 LOGE("申请输出内存失败：%s", av_err2str(ret));
                 break;
             }
+
+            // 结束本轮循环则释放内存
+             Releaser releaser(&dst_data[0], release_av);
 
             // 重采样
             int nb = swr_convert(swr_context, dst_data, dst_nb_samples,
@@ -172,13 +192,13 @@ void PcmReader::audio_decode_frame(AVCodecContext *p_codec_ctx, AVPacket &packet
                 continue;
             }
 
-            // 重采样后实际的缓冲区大小
-            int dst_buff_size = av_samples_get_buffer_size(&dst_linesize, dst_nb_channels,
-                                                     nb, dst_sample_fmt, align);
+            // 重采样后计算实际的缓冲区大小
+            int dst_buff_size = av_samples_get_buffer_size(&dst_linesize, dst_nb_channels,nb, dst_sample_fmt, align);
             if (dst_buff_size < 0) {
                 LOGE("获取重采样后实际的缓冲区大小失败：%s", av_err2str(dst_buff_size));
                 break;
             }
+
             ret = save_pcm_data(*dst_data, dst_buff_size);
             if (ret < 0) {
                 LOGE("保存pcm数据失败：%s", strerror(ret));

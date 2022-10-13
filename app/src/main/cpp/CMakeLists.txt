@@ -31,7 +31,7 @@ file(GLOB SOURCE_FILES
 add_library(
         iaudiopalyer
         SHARED
-        native-lib.cpp  ${SOURCE_FILES} src/PcmFrame.cpp src/PcmFrame.cpp)
+        native-lib.cpp  ${SOURCE_FILES} src/PcmFrame.cpp src/PcmFrame.cpp src/Releaser.cpp)
 
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
