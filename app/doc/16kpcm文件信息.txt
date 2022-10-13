@@ -1,0 +1,14 @@
+Input #0, alp, from '/Users/yuelinwang/Downloads/test.pcm':
+  Duration: 00:00:52.87, bitrate: 176 kb/s
+  Stream #0:0: Audio: adpcm_ima_alp, 44100 Hz, mono, s16, 176 kb/s
+Stream mapping:
+  Stream #0:0 -> #0:0 (adpcm_ima_alp (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, s16le, to '16k.pcm':
+  Metadata:
+    encoder         : Lavf59.27.100
+  Stream #0:0: Audio: pcm_s16le, 16000 Hz, stereo, s16, 512 kb/s
+    Metadata:
+      encoder         : Lavc59.37.100 pcm_s16le
+size=    3304kB time=00:00:52.87 bitrate= 512.0kbits/s speed=1.25e+03x
+video:0kB audio:3304kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.000000%
